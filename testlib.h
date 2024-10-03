@@ -26,6 +26,7 @@
  */
 
 #define VERSION "0.9.44"
+#define ACMOJ
 
 /*
  * Mike Mirzayanov
@@ -63,6 +64,7 @@
  */
 
 const char *latestFeatures[] = {
+        "Added compatibility with ACM Class OnlineJudge (compile with ACMOJ directive)",
         "Added ConstantBoundsLog, VariablesLog to validator testOverviewLogFile",
         "Use setAppesModeEncoding to change xml encoding from windows-1251 to other",
         "rnd.any/wany use distance/advance instead of -/+: now they support sets/multisets",
@@ -2395,6 +2397,9 @@ InStream ans;
 bool appesMode;
 std::string appesModeEncoding = "windows-1251";
 std::string resultName;
+#ifdef ACMOJ
+std::string messageName;
+#endif
 std::string checkerName = "untitled checker";
 random_t rnd;
 TTestlibMode testlibMode = _unknown;
@@ -2915,6 +2920,7 @@ void setTestCase(int testCase) {
     first_run = false;
 }
 
+#ifndef ACMOJ
 #ifdef __GNUC__
 __attribute__((const))
 #endif
@@ -2941,6 +2947,7 @@ int resultExitCode(TResult r) {
         return PC_BASE_EXIT_CODE + (r - _partially);
     return FAIL_EXIT_CODE;
 }
+#endif
 
 void InStream::textColor(
 #if !(defined(ON_WINDOWS) && (!defined(_MSC_VER) || _MSC_VER > 1400)) && defined(__GNUC__)
@@ -3106,6 +3113,9 @@ NORETURN void InStream::quit(TResult result, const char *msg) {
     }
 
     std::FILE *resultFile;
+#ifdef ACMOJ
+    std::FILE *messageFile;
+#endif
     std::string errorName;
 
     if (__testlib_shouldCheckDirt(result)) {
@@ -3161,6 +3171,26 @@ NORETURN void InStream::quit(TResult result, const char *msg) {
             resultName = "";
             quit(_fail, "Can not write to the result file");
         }
+#ifdef ACMOJ
+        if (messageName != "") {
+            messageFile = testlib_fopen_(messageName.c_str(), "w");
+            if (messageFile == NULL) {
+                messageName = "";
+                quit(_fail, "Can not write to the message file");
+            }
+        }
+        if (isPartial)
+            quit(_fail, "ACMOJ does not support _partial");
+        if (result != _points)
+            __testlib_points = result == _ok ? 1 : 0;
+        if (__testlib_points == std::numeric_limits<float>::infinity())
+            quit(_fail, "Expected points, but infinity found");
+        std::string stringPoints = removeDoubleTrailingZeroes(testlib_format_("%.10f", __testlib_points));
+        std::fprintf(resultFile, "%s\n", stringPoints.c_str());
+
+        auto msgTarget = messageName == "" ? resultFile : messageFile;
+        std::fprintf(msgTarget, "%s", __testlib_toPrintableMessage(message).c_str());
+#else
         if (appesMode) {
             std::fprintf(resultFile, "<?xml version=\"1.0\" encoding=\"%s\"?>", appesModeEncoding.c_str());
             if (isPartial)
@@ -3181,10 +3211,17 @@ NORETURN void InStream::quit(TResult result, const char *msg) {
             std::fprintf(resultFile, "</result>\n");
         } else
             std::fprintf(resultFile, "%s", __testlib_toPrintableMessage(message).c_str());
+#endif
         if (NULL == resultFile || fclose(resultFile) != 0) {
             resultName = "";
             quit(_fail, "Can not write to the result file");
         }
+#ifdef ACMOJ
+        if (messageName != "" && (NULL == messageFile || fclose(messageFile) != 0)) {
+            messageName = "";
+            quit(_fail, "Can not write to the message file");
+        }
+#endif
     }
 
     quitscr(LightGray, __testlib_toPrintableMessage(message).c_str());
@@ -3201,7 +3238,11 @@ NORETURN void InStream::quit(TResult result, const char *msg) {
     if (resultName != "")
         std::fprintf(stderr, "See file to check exit message\n");
 
+#ifdef ACMOJ
+    halt(0);
+#else
     halt(resultExitCode(result));
+#endif
 }
 
 #ifdef __GNUC__
@@ -4683,7 +4724,7 @@ void setAppesModeEncoding(std::string appesModeEncoding) {
     ::appesModeEncoding = appesModeEncoding;
 }
 
-void registerInteraction(int argc, char *argv[]) {
+void registerInteraction(int argc, char *argv[], bool interactorIsChecker) {
     __testlib_ensuresPreconditions();
     __testlib_set_testset_and_group(argc, argv);
     TestlibFinalizeGuard::registered = true;
@@ -4694,6 +4735,16 @@ void registerInteraction(int argc, char *argv[]) {
     if (argc > 1 && !strcmp("--help", argv[1]))
         __testlib_help();
 
+#ifdef ACMOJ
+    if (argc != 3) {
+        quit(_fail, std::string("Program must be run with the following arguments: ") +
+                    std::string("<input-file> <output-file>") +
+                    "\nUse \"--help\" to get help information");
+    }
+
+    resultName = interactorIsChecker ? argv[2] : "";
+    appesMode = false;
+#else
     if (argc < 3 || argc > 6) {
         quit(_fail, std::string("Program must be run with the following arguments: ") +
                     std::string("<input-file> <output-file> [<answer-file> [<report-file> [<-appes>]]]") +
@@ -4720,6 +4771,7 @@ void registerInteraction(int argc, char *argv[]) {
             appesMode = true;
         }
     }
+#endif
 #endif
 
     inf.init(argv[1], _input);
@@ -4887,6 +4939,17 @@ void registerTestlibCmd(int argc, char *argv[]) {
     if (argc > 1 && "--help" == args[1])
         __testlib_help();
 
+#ifdef ACMOJ
+    if (argc != 6) {
+        quit(_fail, std::string("Program must be run with the following arguments: ") +
+                    std::string("[--testset testset] [--group group] <input-file> <output-file> <answer-file> <score-file> <message-file>") +
+                    "\nUse \"--help\" to get help information");
+    }
+
+    resultName = args[4];
+    messageName = args[5];
+    appesMode = false;
+#else
     if (argc < 4 || argc > 6) {
         quit(_fail, std::string("Program must be run with the following arguments: ") +
                     std::string("[--testset testset] [--group group] <input-file> <output-file> <answer-file> [<report-file> [<-appes>]]") +
@@ -4914,6 +4977,7 @@ void registerTestlibCmd(int argc, char *argv[]) {
         }
     }
 #endif
+#endif
 
     inf.init(args[1], _input);
     ouf.init(args[2], _output);
@@ -4921,6 +4985,7 @@ void registerTestlibCmd(int argc, char *argv[]) {
     ans.init(args[3], _answer);
 }
 
+#ifndef ACMOJ
 void registerTestlib(int argc, ...) {
     if (argc < 3 || argc > 5)
         quit(_fail, std::string("Program must be run with the following arguments: ") +
@@ -4939,6 +5004,7 @@ void registerTestlib(int argc, ...) {
     registerTestlibCmd(argc + 1, argv);
     delete[] argv;
 }
+#endif
 
 static inline void __testlib_ensure(bool cond, const std::string &msg) {
     if (!cond)

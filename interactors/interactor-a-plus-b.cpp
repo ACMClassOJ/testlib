@@ -5,7 +5,7 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
     setName("Interactor A+B");
-    registerInteraction(argc, argv);
+    registerInteraction(argc, argv, false);
 
     // reads number of queries from test (input) file
     int n = inf.readInt();
