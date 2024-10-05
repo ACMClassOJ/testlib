@@ -4940,7 +4940,7 @@ void registerTestlibCmd(int argc, char *argv[]) {
         __testlib_help();
 
 #ifdef ACMOJ
-    if (argc != 6) {
+    if (argc < 6) {
         quit(_fail, std::string("Program must be run with the following arguments: ") +
                     std::string("[--testset testset] [--group group] <input-file> <output-file> <answer-file> <score-file> <message-file>") +
                     "\nUse \"--help\" to get help information");
