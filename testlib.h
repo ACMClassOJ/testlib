@@ -4724,7 +4724,7 @@ void setAppesModeEncoding(std::string appesModeEncoding) {
     ::appesModeEncoding = appesModeEncoding;
 }
 
-void registerInteraction(int argc, char *argv[], bool interactorIsChecker) {
+void registerInteraction(int argc, char *argv[], bool interactorIsChecker = true) {
     __testlib_ensuresPreconditions();
     __testlib_set_testset_and_group(argc, argv);
     TestlibFinalizeGuard::registered = true;
@@ -4736,7 +4736,7 @@ void registerInteraction(int argc, char *argv[], bool interactorIsChecker) {
         __testlib_help();
 
 #ifdef ACMOJ
-    if (argc != 3) {
+    if (argc < 3) {
         quit(_fail, std::string("Program must be run with the following arguments: ") +
                     std::string("<input-file> <output-file>") +
                     "\nUse \"--help\" to get help information");

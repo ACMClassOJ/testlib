@@ -5,3 +5,5 @@ cmake-build-debug
 *.o
 *.obj
 CMakeLists.txt
+
+*.gch
